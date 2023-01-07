@@ -43,58 +43,62 @@ func main() {
 			log.Fatal(err)
 		}
 
-		// start handling the request, blocking mode
-		go func(conSrc io.ReadWriter) {
-			// Create the buffer for source
-			srcReadWrite := bufio.NewReadWriter(bufio.NewReader(conSrc), bufio.NewWriter(conSrc))
-			srcBuf := make([]byte, 8*1024*1024)
+		// establish connection
+		conDst, err := net.DialTCP("tcp", nil, addrDst)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-			// establish connection
-			conDst, err := net.DialTCP("tcp", nil, addrDst)
+		// buffer for source (UX)
+		srcBuf := make([]byte, 2*1024)
+		srcReadWrite := bufio.NewReadWriter(bufio.NewReader(conSrc), bufio.NewWriter(conSrc))
+
+		// buffer for data (sdr)
+		dstBuf := make([]byte, 128*1024)
+		dstReadWrite := bufio.NewReadWriter(bufio.NewReader(conDst), bufio.NewWriter(conDst))
+
+		fmt.Println("connected to", *connectPtr)
+		// from dst -> src
+		go handle_data_stream(conSrc, conDst, *srcReadWrite, *dstReadWrite, srcBuf, dstBuf)
+		go handle_cmd_stream(conSrc, conDst, *srcReadWrite, *dstReadWrite, srcBuf, dstBuf)
+	}
+}
+
+func handle_cmd_stream(conSrc io.ReadWriter, conDst io.ReadWriter, srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWriter, srcBuf []byte, dstBuf []byte) {
+	// Handling cmd channel - from src/listening -> dst/connect
+
+	for {
+		// Read data from src
+		n, err := srcReadWrite.Read(srcBuf)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if n > 0 {
+			// Write data to a Dst
+			_, err := dstReadWrite.Write([]byte(srcBuf))
 			if err != nil {
 				log.Fatal(err)
 			}
-			defer conDst.Close()
-			fmt.Println("connected to", *connectPtr)
+		}
+		dstReadWrite.Flush()
+	}
+}
 
-			// Create the buffer for dest
-			dstReadWrite := bufio.NewReadWriter(bufio.NewReader(conDst), bufio.NewWriter(conDst))
-			dstBuf := make([]byte, 2*1024)
-
-			go func() {
-				// Handling command channel - from dst/connect to src/listening
-				for {
-					// Read data from dst
-					n2, err := dstReadWrite.Read(srcBuf)
-					if err != nil {
-						log.Fatal(err)
-					}
-					if n2 > 0 {
-						// Write data to src
-						_, err := srcReadWrite.Write([]byte(srcBuf))
-						if err != nil {
-							log.Fatal(err)
-						}
-					}
-					dstReadWrite.Flush()
-				}
-			}()
-			// Handling data channel - from src/listening to dst/connect
-			for {
-				// Read data from src
-				n1, err := srcReadWrite.Read(dstBuf)
-				if err != nil {
-					log.Fatal(err)
-				}
-				if n1 > 0 {
-					// Write data to a Dst
-					_, err := dstReadWrite.Write([]byte(dstBuf))
-					if err != nil {
-						log.Fatal(err)
-					}
-				}
-				srcReadWrite.Flush()
+func handle_data_stream(conSrc io.ReadWriter, conDst io.ReadWriter, srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWriter, srcBuf []byte, dstBuf []byte) {
+	// Handling command channel - from dst/connect to src/listening
+	for {
+		// Read data from dst
+		n, err := dstReadWrite.Read(dstBuf)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if n > 0 {
+			// Write data to src
+			_, err := srcReadWrite.Write([]byte(dstBuf))
+			if err != nil {
+				log.Fatal(err)
 			}
-		}(conSrc)
+		}
+		srcReadWrite.Flush()
 	}
 }
