@@ -14,6 +14,7 @@ func main() {
 	listenPtr := flag.String("listen", "0.0.0.0:9001", "listen IP:Port by default is [0.0.0.0:9001]")
 	connectPtr := flag.String("connect", "127.0.0.1:9002", "connect IP:Port by default is [127.0.0.1:9002]")
 	compressPtr := flag.String("compress", "no", "what end of transport will be compressed. Default is [no], possible options listen, connect")
+	//TODO - compress level
 	flag.Parse()
 
 	fmt.Println("Compressed is: ", *compressPtr)
@@ -46,6 +47,7 @@ func main() {
 		go func(conSrc io.ReadWriter) {
 			// Create the buffer for source
 			srcReadWrite := bufio.NewReadWriter(bufio.NewReader(conSrc), bufio.NewWriter(conSrc))
+
 			srcBuf := make([]byte, 8*1024*1024)
 
 			// establish connection
@@ -58,11 +60,11 @@ func main() {
 
 			// Create the buffer for dest
 			dstReadWrite := bufio.NewReadWriter(bufio.NewReader(conDst), bufio.NewWriter(conDst))
-			dstBuf := make([]byte, 8*1024*1024)
+			dstBuf := make([]byte, 2*1024)
 
 			go func() {
+				// Handling command channel - from dst/connect to src/listening
 				for {
-					// Handling command channel - from dst/connect to src/listening
 					// Read data from dst
 					n2, err := dstReadWrite.Read(dstBuf)
 					if err != nil {
@@ -75,8 +77,10 @@ func main() {
 							log.Fatal(err)
 						}
 					}
+					dstReadWrite.Flush()
 				}
 			}()
+			// Handling data channel - from src/listening to dst/connect
 			for {
 				// Read data from src
 				n1, err := srcReadWrite.Read(srcBuf)
@@ -90,6 +94,7 @@ func main() {
 						log.Fatal(err)
 					}
 				}
+				srcReadWrite.Flush()
 			}
 		}(conSrc)
 	}
