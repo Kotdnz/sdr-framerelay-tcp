@@ -1,18 +1,18 @@
 package main
 
 import (
-        "bufio"
-        "fmt"
-        "net"
+	"bufio"
+	"fmt"
 	"io"
 	"log"
+	"net"
 )
 
 func main() {
 	// convert address
 	addrSrc, _ := net.ResolveTCPAddr("tcp", "0.0.0.0:9001")
 	addrDst, _ := net.ResolveTCPAddr("tcp", "0.0.0.0:9002")
-	
+
 	// listener
 	listener, err := net.ListenTCP("tcp", addrSrc)
 	if err != nil {
@@ -26,7 +26,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		
+
 		// start handling the request, blocking mode
 		go func(conSrc io.ReadWriter) {
 			// Create the buffer for source
@@ -34,12 +34,12 @@ func main() {
 			srcBuf := make([]byte, 8*1024*1024)
 
 			// establish connection
- 			conDst, err := net.DialTCP("tcp", nil, addrDst)
-                	  if err != nil {
-                       		   log.Fatal(err)
-                 	  }
-          		defer conDst.Close()
-                        fmt.Println("connected to :9002")
+			conDst, err := net.DialTCP("tcp", nil, addrDst)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer conDst.Close()
+			fmt.Println("connected to :9002")
 
 			// Create the buffer for dest
 			dstReadWrite := bufio.NewReadWriter(bufio.NewReader(conDst), bufio.NewWriter(conDst))
@@ -49,13 +49,13 @@ func main() {
 				// Read data from src
 				n1, err := srcReadWrite.Read(srcBuf)
 				if err != nil {
-                              	   log.Fatal(err)
-                    		}
+					log.Fatal(err)
+				}
 				if n1 > 0 {
-			  		// Write data to a Dst
-			  		_, err := dstReadWrite.Write([]byte(srcBuf))
+					// Write data to a Dst
+					_, err := dstReadWrite.Write([]byte(srcBuf))
 					if err != nil {
-					  log.Fatal(err)
+						log.Fatal(err)
 					}
 					//srcBuf.Flush()
 				}
@@ -75,8 +75,6 @@ func main() {
 				}
 			}
 			//conSrc.Close()
-		} (conSrc)
+		}(conSrc)
 	}
 }
-
-
