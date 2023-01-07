@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net"
 )
@@ -43,29 +42,26 @@ func main() {
 			log.Fatal(err)
 		}
 
-		// establish connection
+		// establish connection to client
 		conDst, err := net.DialTCP("tcp", nil, addrDst)
 		if err != nil {
 			log.Fatal(err)
 		}
+		fmt.Println("connected to", *connectPtr)
 
-		// buffer for source (UX)
-		srcBuf := make([]byte, 2*1024)
 		srcReadWrite := bufio.NewReadWriter(bufio.NewReader(conSrc), bufio.NewWriter(conSrc))
-
-		// buffer for data (sdr)
-		dstBuf := make([]byte, 128*1024)
 		dstReadWrite := bufio.NewReadWriter(bufio.NewReader(conDst), bufio.NewWriter(conDst))
 
-		fmt.Println("connected to", *connectPtr)
-		// from dst -> src
-		go handle_data_stream(conSrc, conDst, *srcReadWrite, *dstReadWrite, srcBuf, dstBuf)
-		go handle_cmd_stream(conSrc, conDst, *srcReadWrite, *dstReadWrite, srcBuf, dstBuf)
+		// running the routine to handle
+		go handle_data_stream(*srcReadWrite, *dstReadWrite)
+		go handle_cmd_stream(*srcReadWrite, *dstReadWrite)
 	}
 }
 
-func handle_cmd_stream(conSrc io.ReadWriter, conDst io.ReadWriter, srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWriter, srcBuf []byte, dstBuf []byte) {
+func handle_cmd_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWriter) {
 	// Handling cmd channel - from src/listening -> dst/connect
+	// buffer for source (UX)
+	srcBuf := make([]byte, 2*1024)
 
 	for {
 		// Read data from src
@@ -84,8 +80,10 @@ func handle_cmd_stream(conSrc io.ReadWriter, conDst io.ReadWriter, srcReadWrite 
 	}
 }
 
-func handle_data_stream(conSrc io.ReadWriter, conDst io.ReadWriter, srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWriter, srcBuf []byte, dstBuf []byte) {
+func handle_data_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWriter) {
 	// Handling command channel - from dst/connect to src/listening
+	// buffer for data (sdr)
+	dstBuf := make([]byte, 128*1024)
 	for {
 		// Read data from dst
 		n, err := dstReadWrite.Read(dstBuf)
