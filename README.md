@@ -5,7 +5,7 @@ Thus, we have two different configuration at the transport ends
 <br>
 <img src="https://github.com/Kotdnz/sdr-framerelay-tcp/blob/main/sdr_v1-option%202.drawio.png"/>
 
-How to build
-[code] go get . 
+How to build<p>
+<code> go get .<br> 
 go build sdr-framerelay-tcp.go
-[/code]
+</code>

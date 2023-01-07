@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -9,9 +10,16 @@ import (
 )
 
 func main() {
+	// read CLI
+	listenPtr := flag.String("listen", "0.0.0.0:9001", "listen IP:Port by default is [0.0.0.0:9001]")
+	connectPtr := flag.String("connect", "127.0.0.1:9002", "connect IP:Port by default is [127.0.0.1:9002]")
+	compressPtr := flag.String("compress", "no", "what end of transport will be compressed. Default is [no], possible options listen, connect")
+	flag.Parse()
+	fmt.Println("Compressed is: ", *compressPtr)
+
 	// convert address
-	addrSrc, _ := net.ResolveTCPAddr("tcp", "0.0.0.0:9001")
-	addrDst, _ := net.ResolveTCPAddr("tcp", "0.0.0.0:9002")
+	addrSrc, _ := net.ResolveTCPAddr("tcp", *listenPtr)
+	addrDst, _ := net.ResolveTCPAddr("tcp", *connectPtr)
 
 	// listener
 	listener, err := net.ListenTCP("tcp", addrSrc)
@@ -19,7 +27,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer listener.Close()
-	fmt.Println("listening :9001")
+	fmt.Println("listening ", *listenPtr)
 
 	for {
 		conSrc, err := listener.AcceptTCP()
@@ -39,12 +47,30 @@ func main() {
 				log.Fatal(err)
 			}
 			defer conDst.Close()
-			fmt.Println("connected to :9002")
+			fmt.Println("connected to", *connectPtr)
 
 			// Create the buffer for dest
 			dstReadWrite := bufio.NewReadWriter(bufio.NewReader(conDst), bufio.NewWriter(conDst))
 			dstBuf := make([]byte, 8*1024*1024)
 
+			go func() {
+				for {
+					// Handling command channel - from dst/connect to src/listening
+					// Read data from dst
+					n2, err := dstReadWrite.Read(dstBuf)
+					if err != nil {
+						log.Fatal(err)
+					}
+					if n2 > 0 {
+						// Write data to src
+						_, err := srcReadWrite.Write([]byte(dstBuf))
+						if err != nil {
+							log.Fatal(err)
+						}
+						//dstBuf.Flush()
+					}
+				}
+			}()
 			for {
 				// Read data from src
 				n1, err := srcReadWrite.Read(srcBuf)
@@ -59,22 +85,7 @@ func main() {
 					}
 					//srcBuf.Flush()
 				}
-				// Writing vice versa
-				// Read data from dst
-				n2, err := dstReadWrite.Read(dstBuf)
-				if err != nil {
-					log.Fatal(err)
-				}
-				if n2 > 0 {
-					// Write data to src
-					_, err := srcReadWrite.Write([]byte(dstBuf))
-					if err != nil {
-						log.Fatal(err)
-					}
-					//dstBuf.Flush()
-				}
 			}
-			//conSrc.Close()
 		}(conSrc)
 	}
 }
