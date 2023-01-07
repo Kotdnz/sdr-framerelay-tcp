@@ -47,7 +47,6 @@ func main() {
 		go func(conSrc io.ReadWriter) {
 			// Create the buffer for source
 			srcReadWrite := bufio.NewReadWriter(bufio.NewReader(conSrc), bufio.NewWriter(conSrc))
-
 			srcBuf := make([]byte, 8*1024*1024)
 
 			// establish connection
@@ -66,13 +65,13 @@ func main() {
 				// Handling command channel - from dst/connect to src/listening
 				for {
 					// Read data from dst
-					n2, err := dstReadWrite.Read(dstBuf)
+					n2, err := dstReadWrite.Read(srcBuf)
 					if err != nil {
 						log.Fatal(err)
 					}
 					if n2 > 0 {
 						// Write data to src
-						_, err := srcReadWrite.Write([]byte(dstBuf))
+						_, err := srcReadWrite.Write([]byte(srcBuf))
 						if err != nil {
 							log.Fatal(err)
 						}
@@ -83,13 +82,13 @@ func main() {
 			// Handling data channel - from src/listening to dst/connect
 			for {
 				// Read data from src
-				n1, err := srcReadWrite.Read(srcBuf)
+				n1, err := srcReadWrite.Read(dstBuf)
 				if err != nil {
 					log.Fatal(err)
 				}
 				if n1 > 0 {
 					// Write data to a Dst
-					_, err := dstReadWrite.Write([]byte(srcBuf))
+					_, err := dstReadWrite.Write([]byte(dstBuf))
 					if err != nil {
 						log.Fatal(err)
 					}
