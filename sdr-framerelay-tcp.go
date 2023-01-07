@@ -15,8 +15,15 @@ func main() {
 	connectPtr := flag.String("connect", "127.0.0.1:9002", "connect IP:Port by default is [127.0.0.1:9002]")
 	compressPtr := flag.String("compress", "no", "what end of transport will be compressed. Default is [no], possible options listen, connect")
 	flag.Parse()
-	fmt.Println("Compressed is: ", *compressPtr)
 
+	fmt.Println("Compressed is: ", *compressPtr)
+	if string(*compressPtr) != "no" {
+		if string(*compressPtr) == "connect" {
+			fmt.Println("Compressing sending data")
+		} else {
+			fmt.Println("Decompressing receiving data")
+		}
+	}
 	// convert address
 	addrSrc, _ := net.ResolveTCPAddr("tcp", *listenPtr)
 	addrDst, _ := net.ResolveTCPAddr("tcp", *connectPtr)
@@ -67,7 +74,6 @@ func main() {
 						if err != nil {
 							log.Fatal(err)
 						}
-						//dstBuf.Flush()
 					}
 				}
 			}()
@@ -83,7 +89,6 @@ func main() {
 					if err != nil {
 						log.Fatal(err)
 					}
-					//srcBuf.Flush()
 				}
 			}
 		}(conSrc)
