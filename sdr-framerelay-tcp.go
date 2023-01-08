@@ -61,7 +61,7 @@ func main() {
 func handle_cmd_stream(conSrc net.Conn, conDst net.Conn) {
 	// Handling cmd channel - from src/listening -> dst/connect
 	// buffer for source (UX)
-	var srcBuf []byte
+	srcBuf := make([]byte, 1)
 
 	for {
 		// Read data from src
