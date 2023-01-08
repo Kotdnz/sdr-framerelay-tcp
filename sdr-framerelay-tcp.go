@@ -33,7 +33,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer listener.Close()
+
 	fmt.Println("listening ", *listenPtr)
 
 	for {
