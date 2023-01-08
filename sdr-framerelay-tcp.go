@@ -54,29 +54,29 @@ func main() {
 
 		// running the routine to handle
 		go handle_data_stream(*srcReadWrite, *dstReadWrite)
-		go handle_cmd_stream(*srcReadWrite, *dstReadWrite)
+		go handle_cmd_stream(conSrc, conDst)
 	}
 }
 
-func handle_cmd_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWriter) {
+func handle_cmd_stream(conSrc net.Conn, conDst net.Conn) {
 	// Handling cmd channel - from src/listening -> dst/connect
 	// buffer for source (UX)
-	srcBuf := make([]byte, 1)
+	var srcBuf []byte
 
 	for {
 		// Read data from src
-		n, err := srcReadWrite.Read(srcBuf)
+		n, err := conSrc.Read(srcBuf)
 		if err != nil {
 			log.Fatal(err)
 		}
 		if n > 0 {
 			// Write data to a Dst
-			_, err := dstReadWrite.Write([]byte(srcBuf))
+			_, err := conDst.Write(srcBuf)
 			if err != nil {
 				log.Fatal(err)
 			}
 		}
-		dstReadWrite.Flush()
+		//dstReadWrite.Flush()
 	}
 }
 
