@@ -61,7 +61,7 @@ func main() {
 func handle_cmd_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWriter) {
 	// Handling cmd channel - from src/listening -> dst/connect
 	// buffer for source (UX)
-	srcBuf := make([]byte, 2*1024)
+	srcBuf := make([]byte, 1)
 
 	for {
 		// Read data from src
