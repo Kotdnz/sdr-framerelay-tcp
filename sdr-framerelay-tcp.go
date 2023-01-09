@@ -1,3 +1,13 @@
+/** @file sdr-framerelay-tcp.go
+ *
+ * @brief fremarelay between source and destination to optimize the stream
+ * and even compress tcp flow from https://github.com/blinick/rtl-sdr/
+ * @source https://github.com/Kotdnz/sdr-framerelay-tcp
+ * @author Kostiantyn Nikonenko
+ * @date January,9, 2023
+ * @time 12:20
+ */
+
 package main
 
 import (
@@ -6,12 +16,13 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"time"
 )
 
+var Version string = "v.1.5"
 var isConnected bool
 
 func main() {
+	fmt.Println("sdr-fremarelay-tcp version: ", Version)
 	// read CLI
 	listenPtr := flag.String("listen", "0.0.0.0:9001", "listen IP:Port by default is [0.0.0.0:9001]")
 	connectPtr := flag.String("connect", "127.0.0.1:9002", "connect IP:Port by default is [127.0.0.1:9002]")
@@ -78,16 +89,16 @@ func handle_cmd_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWri
 	    }__attribute__((packed));
 		struct command cmd={0, 0};
 		sizeof(cmd) = 5 bytes */
-	cmdBuf := 5
+	cmdSize := 5
 
-	srcBuf := make([]byte, cmdBuf)
+	srcBuf := make([]byte, cmdSize)
 
 	for {
 		if !isConnected {
 			break
 		}
 		// Read data from src
-		if srcReadWrite.Reader.Size() >= cmdBuf {
+		if srcReadWrite.Reader.Size() >= cmdSize {
 			_, err := srcReadWrite.Read(srcBuf)
 			if err != nil {
 				fmt.Println("Read cmd from src error", err)
@@ -113,30 +124,32 @@ func handle_data_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWr
 	// out target is handle the stream from
 	// https://github.com/blinick/rtl-sdr/blob/wip_rtltcp_ringbuf/src/rtl_tcp.c
 	// every second with buffer less that 8Mb
-
-	dstBuf := make([]byte, 8*1024*1024)
+	dataSize := 128 * 1024
+	dstBuf := make([]byte, dataSize)
 	for {
 		if !isConnected {
 			break
 		}
 		// our rtl_tcp sending blocks every 1 second
 		// let him the time to prepare
-		time.Sleep(1 * time.Second)
+		// time.Sleep(1 * time.Second)
 		// Read data from dst
-		n, err := dstReadWrite.Read(dstBuf)
-		if err != nil {
-			fmt.Println("Read data from dst error")
-			break
-		}
-		if n > 0 {
-			// Write data to src
-			_, err := srcReadWrite.Write([]byte(dstBuf))
+		if dstReadWrite.Reader.Size() >= dataSize {
+			_, err := dstReadWrite.Read(dstBuf)
 			if err != nil {
-				fmt.Println("Write data to src error")
+				fmt.Println("Read data from dst error")
 				break
 			}
+			if err == nil {
+				// Write data to src
+				_, err := srcReadWrite.Write([]byte(dstBuf))
+				if err != nil {
+					fmt.Println("Write data to src error")
+					break
+				}
+			}
+			srcReadWrite.Writer.Flush()
 		}
-		srcReadWrite.Writer.Flush()
 	}
 	isConnected = false
 }
