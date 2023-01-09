@@ -98,7 +98,7 @@ func handle_cmd_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWri
 			break
 		}
 		// Read data from src
-		if srcReadWrite.Reader.Size() >= 0 {
+		if srcReadWrite.Reader.Size() > 0 {
 			_, err := srcReadWrite.Read(srcBuf)
 			if err != nil {
 				fmt.Println("Read cmd from src error", err)
@@ -134,7 +134,7 @@ func handle_data_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWr
 		// let him the time to prepare
 		// time.Sleep(1 * time.Second)
 		// Read data from dst
-		if dstReadWrite.Reader.Size() >= 0 {
+		if dstReadWrite.Reader.Size() > 0 {
 			_, err := dstReadWrite.Read(dstBuf)
 			if err != nil {
 				fmt.Println("Read data from dst error")
