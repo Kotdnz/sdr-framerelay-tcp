@@ -98,22 +98,22 @@ func handle_cmd_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWri
 			break
 		}
 		// Read data from src
-		if srcReadWrite.Reader.Size() >= cmdSize {
-			_, err := srcReadWrite.Read(srcBuf)
+
+		n, err := srcReadWrite.Read(srcBuf)
+		if err != nil {
+			fmt.Println("Read cmd from src error", err)
+			break
+		}
+		if n > cmdSize {
+			// Write data to a Dst
+			_, err := dstReadWrite.Write([]byte(srcBuf))
 			if err != nil {
-				fmt.Println("Read cmd from src error", err)
+				fmt.Println("Write cmd to dst error")
 				break
 			}
-			if err == nil {
-				// Write data to a Dst
-				_, err := dstReadWrite.Write([]byte(srcBuf))
-				if err != nil {
-					fmt.Println("Write cmd to dst error")
-					break
-				}
-			}
-			dstReadWrite.Writer.Flush()
 		}
+		dstReadWrite.Writer.Flush()
+
 	}
 	isConnected = false
 }
