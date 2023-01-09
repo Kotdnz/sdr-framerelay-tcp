@@ -4,8 +4,8 @@
  * and even compress tcp flow from https://github.com/blinick/rtl-sdr/
  * @source https://github.com/Kotdnz/sdr-framerelay-tcp
  * @author Kostiantyn Nikonenko
- * @date January,9, 2023
- * @time 12:47
+ * @date January, 09, 2023
+ * @time 12:57
  */
 
 package main
@@ -18,7 +18,7 @@ import (
 	"net"
 )
 
-var Version string = "v.1.6"
+var Version string = "v.1.7"
 var isConnected bool
 
 func main() {
@@ -91,14 +91,14 @@ func handle_cmd_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWri
 		sizeof(cmd) = 5 bytes */
 	cmdSize := 5
 
-	srcBuf := make([]byte, cmdSize)
+	srcBuf := make([]byte, cmdSize*10)
 
 	for {
 		if !isConnected {
 			break
 		}
 		// Read data from src
-		if srcReadWrite.Reader.Size() > 0 {
+		if srcReadWrite.Reader.Size() >= cmdSize {
 			_, err := srcReadWrite.Read(srcBuf)
 			if err != nil {
 				fmt.Println("Read cmd from src error", err)
@@ -125,7 +125,7 @@ func handle_data_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWr
 	// https://github.com/blinick/rtl-sdr/blob/wip_rtltcp_ringbuf/src/rtl_tcp.c
 	// every second with buffer less that 8Mb
 	dataSize := 128 * 1024
-	dstBuf := make([]byte, dataSize)
+	dstBuf := make([]byte, dataSize*4) // 512
 	for {
 		if !isConnected {
 			break
@@ -134,7 +134,7 @@ func handle_data_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWr
 		// let him the time to prepare
 		// time.Sleep(1 * time.Second)
 		// Read data from dst
-		if dstReadWrite.Reader.Size() > 0 {
+		if dstReadWrite.Reader.Size() >= dataSize {
 			_, err := dstReadWrite.Read(dstBuf)
 			if err != nil {
 				fmt.Println("Read data from dst error")
