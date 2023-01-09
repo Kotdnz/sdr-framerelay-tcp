@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 )
 
 var isConnected bool
@@ -43,6 +44,7 @@ func main() {
 	isConnected = false
 
 	for {
+
 		conSrc, err = listener.AcceptTCP()
 		if err != nil {
 			fmt.Println("[Error] Can't start src listener")
@@ -69,15 +71,23 @@ func main() {
 func handle_cmd_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWriter) {
 	// Handling cmd channel - from src/listening -> dst/connect
 	// buffer for source (UX)
-	// sdr_tcp.c structure is char + int, expecting 2 bytes
-	srcBuf := make([]byte, 2)
+	// sdr_tcp.c structure size is 5
+	/* struct command{
+		unsigned char cmd;
+		unsigned int param;
+	    }__attribute__((packed));
+		struct command cmd={0, 0};
+		sizeof(cmd) = 5 bytes */
+	cmdBuf := 5
+
+	srcBuf := make([]byte, cmdBuf)
 
 	for {
 		if !isConnected {
 			break
 		}
 		// Read data from src
-		if srcReadWrite.Reader.Size() >= 2 {
+		if srcReadWrite.Reader.Size() >= cmdBuf {
 			_, err := srcReadWrite.Read(srcBuf)
 			if err != nil {
 				fmt.Println("Read cmd from src error", err)
@@ -100,17 +110,23 @@ func handle_cmd_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWri
 func handle_data_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWriter) {
 	// Handling command channel - from dst/connect to src/listening
 	// buffer for data (sdr)
-	dstBuf := make([]byte, 128*1024)
+	// out target is handle the stream from
+	// https://github.com/blinick/rtl-sdr/blob/wip_rtltcp_ringbuf/src/rtl_tcp.c
+	// every second with buffer less that 8Mb
+
+	dstBuf := make([]byte, 8*1024*1024)
 	for {
 		if !isConnected {
 			break
 		}
+		// our rtl_tcp sending blocks every 1 second
+		// let him the time to prepare
+		time.Sleep(1 * time.Second)
 		// Read data from dst
 		n, err := dstReadWrite.Read(dstBuf)
 		if err != nil {
 			fmt.Println("Read data from dst error")
 			break
-			//log.Fatal(err)
 		}
 		if n > 0 {
 			// Write data to src
@@ -118,7 +134,6 @@ func handle_data_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWr
 			if err != nil {
 				fmt.Println("Write data to src error")
 				break
-				//log.Fatal(err)
 			}
 		}
 		srcReadWrite.Writer.Flush()
