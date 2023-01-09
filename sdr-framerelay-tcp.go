@@ -5,7 +5,7 @@
  * @source https://github.com/Kotdnz/sdr-framerelay-tcp
  * @author Kostiantyn Nikonenko
  * @date January, 09, 2023
- * @time 12:57
+ * @time 14:45
  */
 
 package main
@@ -18,7 +18,7 @@ import (
 	"net"
 )
 
-var Version string = "v.1.7"
+var Version string = "v.1.8"
 var isConnected bool
 
 func main() {
@@ -125,7 +125,7 @@ func handle_data_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWr
 	// https://github.com/blinick/rtl-sdr/blob/wip_rtltcp_ringbuf/src/rtl_tcp.c
 	// every second with buffer less that 8Mb
 	dataSize := 128 * 1024
-	dstBuf := make([]byte, dataSize*4) // 512
+	dstBuf := make([]byte, dataSize) // 128kb
 	for {
 		if !isConnected {
 			break
@@ -134,22 +134,21 @@ func handle_data_stream(srcReadWrite bufio.ReadWriter, dstReadWrite bufio.ReadWr
 		// let him the time to prepare
 		// time.Sleep(1 * time.Second)
 		// Read data from dst
-		if dstReadWrite.Reader.Size() >= dataSize {
-			_, err := dstReadWrite.Read(dstBuf)
+
+		n, err := dstReadWrite.Read(dstBuf)
+		if err != nil {
+			fmt.Println("Read data from dst error")
+			break
+		}
+		if n > 0 {
+			// Write data to src
+			_, err := srcReadWrite.Write([]byte(dstBuf))
 			if err != nil {
-				fmt.Println("Read data from dst error")
+				fmt.Println("Write data to src error")
 				break
 			}
-			if err == nil {
-				// Write data to src
-				_, err := srcReadWrite.Write([]byte(dstBuf))
-				if err != nil {
-					fmt.Println("Write data to src error")
-					break
-				}
-			}
-			srcReadWrite.Writer.Flush()
 		}
+		srcReadWrite.Writer.Flush()
 	}
 	isConnected = false
 }
