@@ -10,9 +10,11 @@ import (
 
 // Proxy connections from Listen to Backend.
 type Proxy struct {
-	Listen   string
-	Backend  string
-	listener net.Listener
+	Listen      string
+	Backend     string
+	listener    net.Listener
+	compressDir string
+	compressLvl string
 }
 
 func (p *Proxy) Run() error {
@@ -31,7 +33,7 @@ func (p *Proxy) Run() error {
 				p.handle(conn)
 			}()
 		} else {
-			return nil
+			break
 		}
 	}
 	wg.Wait()
@@ -51,7 +53,7 @@ func (p *Proxy) handle(upConn net.Conn) {
 		return
 	}
 	defer downConn.Close()
-	if err := Pipe(upConn, downConn); err != nil {
+	if err := Pipe(upConn, downConn, p.compressDir, p.compressLvl); err != nil {
 		log.Printf("pipe failed: %s\n", err)
 	} else {
 		log.Printf("disconnected: %s\n", upConn.RemoteAddr())

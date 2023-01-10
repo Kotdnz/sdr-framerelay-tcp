@@ -5,7 +5,7 @@
  * @source https://github.com/Kotdnz/sdr-framerelay-tcp
  * @author Kostiantyn Nikonenko
  * @date January, 10, 2023
- *
+ * @lib https://github.com/klauspost/compress/tree/master/zstd
  */
 
 package main
@@ -19,9 +19,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/klauspost/compress/zstd"
 )
 
-var Version string = "v.2.0"
+var Version string = "v.2.1"
 
 func main() {
 	fmt.Println("sdr-fremarelay-tcp version: ", Version)
@@ -30,24 +32,14 @@ func main() {
 	flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	listen := flag.String("listen", "0.0.0.0:9001", "listen IP:Port by default is [0.0.0.0:9001]")
 	backend := flag.String("connect", "127.0.0.1:9002", "connect IP:Port by default is [127.0.0.1:9002]")
-	compressPtr := flag.String("compress", "no", "what end of transport will be compressed. Default is [no], possible options listen, connect")
-	compressLevel := flag.Int("level", 9, "The compressing level, default is 9")
+	compressPtr := flag.String("compress", "no", "what end of transport will be compressed/decompress. Default is [no], possible options: 'decode' on last hop, 'encode' on first hop")
+	compressLevel := flag.String("speed", "default", "The compressing level. Options: Fastest (lvl 1), Default (lvl 3), Better (lvl 7), Best (lvl 11)")
 
 	flag.Parse()
 
 	fmt.Println("Compressed is: ", *compressPtr, ", level is ", *compressLevel)
-	if string(*compressPtr) != "no" {
-		if string(*compressPtr) == "connect" {
-			fmt.Println("Compressing sending data")
-		} else {
-			fmt.Println("Decompressing receiving data")
-		}
-	}
-	// convert address
-	//listen, _ := net.ResolveTCPAddr("tcp", *listenPtr)
-	//backend, _ := net.ResolveTCPAddr("tcp", *connectPtr)
 
-	p := Proxy{Listen: *listen, Backend: *backend}
+	p := Proxy{Listen: *listen, Backend: *backend, compressDir: *compressPtr, compressLvl: *compressLevel}
 
 	sigs := make(chan os.Signal)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -64,17 +56,72 @@ func main() {
 }
 
 // Copy data between two connections. Return EOF on connection close.
-func Pipe(a, b net.Conn) error {
+func Pipe(a, b net.Conn, dir string, lvl string) error {
 	done := make(chan error, 1)
 
+	// parsing the level
+	encLevel := zstd.SpeedDefault
+	switch lvl {
+	case "Fastest":
+		encLevel = zstd.SpeedFastest
+	case "Default":
+		encLevel = zstd.SpeedDefault
+	case "Better":
+		encLevel = zstd.SpeedBetterCompression
+	case "Best":
+		encLevel = zstd.SpeedBestCompression
+	}
+
 	cp := func(r, w net.Conn) {
-		_, err := io.Copy(r, w)
-		//log.Printf("copied %d bytes from %s to %s", n, r.RemoteAddr(), w.RemoteAddr())
+		n, err := io.Copy(r, w)
+		log.Printf("Pure copied %d bytes from %s to %s", n, r.RemoteAddr(), w.RemoteAddr())
 		done <- err
 	}
 
-	go cp(a, b)
-	go cp(b, a)
+	// Encoding
+	enc := func(in io.Reader, out io.WriteCloser) error {
+		enc, err := zstd.NewWriter(out, zstd.WithEncoderLevel(encLevel))
+		if err != nil {
+			return err
+		}
+		n, err := io.Copy(enc, in)
+		log.Printf("[Encoded] copied %d bytes ", n)
+		if err != nil {
+			enc.Close()
+			return err
+		}
+		return enc.Close()
+	}
+
+	// Decoding
+	dec := func(in io.Reader, out io.Writer) error {
+		dec, err := zstd.NewReader(in)
+		if err != nil {
+			return err
+		}
+		defer dec.Close()
+
+		n, err := io.Copy(out, dec)
+		log.Printf("[Decoded] copied %d bytes ", n)
+		return err
+	}
+
+	// a=upConn, b=downConn
+	// encode - applied to downConn (b)
+	// decode - applied to upConn (a)
+
+	switch dir {
+	case "no":
+		go cp(a, b)
+		go cp(b, a)
+	case "encode":
+		go enc(a, b)
+		go cp(b, a)
+	case "decode":
+		go dec(a, b)
+		go cp(b, a)
+	}
+
 	err1 := <-done
 	err2 := <-done
 	if err1 != nil {
