@@ -79,39 +79,41 @@ func Pipe(a, b net.Conn, dir string, lvl string) error {
 	}
 
 	// Encoding
-	enc := func(in io.Reader, out io.Writer) error {
-		enc, err := zstd.NewWriter(out, zstd.WithEncoderLevel(encLevel))
+	enc := func(r, w net.Conn) {
+		enc, err := zstd.NewWriter(io.WriteCloser(w), zstd.WithEncoderLevel(encLevel))
 		if err != nil {
-			return err
+			log.Println("encoding error", err)
+			done <- err
+			return
 		}
-		n, err := io.Copy(enc, in)
-		log.Printf("[Encoded] copied %d bytes ", n)
+		_, err = io.Copy(enc, r)
+
 		if err != nil {
+			log.Println("encoding copy error", err)
 			enc.Close()
-			return err
+			done <- err
+			return
 		}
 		err = enc.Close()
 		done <- err
-		return err
 	}
 
 	// Decoding
-	dec := func(in io.Reader, out io.Writer) error {
-		dec, err := zstd.NewReader(in)
+	dec := func(r, w net.Conn) {
+		dec, err := zstd.NewReader(io.Reader(r))
 		if err != nil {
-			return err
+			log.Println("Decoding error", err)
+			done <- err
+			return
 		}
 		defer dec.Close()
-
-		n, err := io.Copy(out, dec)
-		log.Printf("[Decoded] copied %d bytes ", n)
+		_, err = io.Copy(w, dec)
 		done <- err
-		return err
 	}
 
 	// a=upConn, b=downConn
 	// encode - applied to downConn (b)
-	// decode - applied to upConn (a)
+	// decode - applied to upConn (a) listen
 
 	switch dir {
 	case "no":
