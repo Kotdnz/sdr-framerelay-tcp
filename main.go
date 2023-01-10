@@ -79,7 +79,7 @@ func Pipe(a, b net.Conn, dir string, lvl string) error {
 	}
 
 	// Encoding
-	enc := func(in io.Reader, out io.WriteCloser) error {
+	enc := func(in io.Reader, out io.Writer) error {
 		enc, err := zstd.NewWriter(out, zstd.WithEncoderLevel(encLevel))
 		if err != nil {
 			return err
@@ -90,7 +90,9 @@ func Pipe(a, b net.Conn, dir string, lvl string) error {
 			enc.Close()
 			return err
 		}
-		return enc.Close()
+		err = enc.Close()
+		done <- err
+		return err
 	}
 
 	// Decoding
@@ -103,6 +105,7 @@ func Pipe(a, b net.Conn, dir string, lvl string) error {
 
 		n, err := io.Copy(out, dec)
 		log.Printf("[Decoded] copied %d bytes ", n)
+		done <- err
 		return err
 	}
 
