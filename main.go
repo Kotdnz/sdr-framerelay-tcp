@@ -4,7 +4,7 @@
  * and even compress tcp flow from https://github.com/blinick/rtl-sdr/
  * @source https://github.com/Kotdnz/sdr-framerelay-tcp
  * @author Kostiantyn Nikonenko
- * @date January, 10, 2023
+ * @date January, 11, 2023
  * @lib https://github.com/klauspost/compress/tree/master/zstd
  */
 
@@ -23,21 +23,21 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-var Version string = "v.2.1"
+var Version string = "v.2.2"
 
 func main() {
 	fmt.Println("sdr-fremarelay-tcp version: ", Version)
 
 	// read CLI
 	flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	listen := flag.String("listen", "0.0.0.0:9001", "listen IP:Port by default is [0.0.0.0:9001]")
-	backend := flag.String("connect", "127.0.0.1:9002", "connect IP:Port by default is [127.0.0.1:9002]")
-	compressPtr := flag.String("compress", "no", "what end of transport will be compressed/decompress. Default is [no], possible options: 'decode' on last hop, 'encode' on first hop")
-	compressLevel := flag.String("speed", "default", "The compressing level. Options: Fastest (lvl 1), Default (lvl 3), Better (lvl 7), Best (lvl 11)")
+	listen := flag.String("listen", "0.0.0.0:9001", "listen IP:Port.")
+	backend := flag.String("connect", "127.0.0.1:9002", "connect to IP:Port.")
+	compressPtr := flag.String("compress", "no", "what end of transport will be compressed/decompress. Possible options: 'decode' on last hop, 'encode' on first hop, and 'no'")
+	compressLevel := flag.String("speed", "Default", "The compressing level. Options: Fastest (lvl 1), Default (lvl 3), Better (lvl 7), Best (lvl 11)")
 
 	flag.Parse()
 
-	fmt.Println("Compressed is: ", *compressPtr, ", level is ", *compressLevel)
+	fmt.Println("Compress is:", *compressPtr, ", level is", *compressLevel)
 
 	p := Proxy{Listen: *listen, Backend: *backend, compressDir: *compressPtr, compressLvl: *compressLevel}
 
@@ -80,7 +80,9 @@ func Pipe(a, b net.Conn, dir string, lvl string) error {
 
 	// Encoding
 	enc := func(r, w net.Conn) {
-		enc, err := zstd.NewWriter(io.WriteCloser(w), zstd.WithEncoderLevel(encLevel))
+		//enc, err := zstd.NewWriter(io.WriteCloser(w), zstd.WithEncoderLevel(encLevel))
+		// no idea on howto make this lib works https://github.com/klauspost/compress/tree/master/zstd
+		enc, err := zstd.NewWriter(w, zstd.WithEncoderLevel(encLevel))
 		if err != nil {
 			log.Println("encoding error", err)
 			done <- err
@@ -100,7 +102,8 @@ func Pipe(a, b net.Conn, dir string, lvl string) error {
 
 	// Decoding
 	dec := func(r, w net.Conn) {
-		dec, err := zstd.NewReader(io.Reader(r))
+		// dec, err := zstd.NewReader(io.Reader(r))
+		dec, err := zstd.NewReader(r)
 		if err != nil {
 			log.Println("Decoding error", err)
 			done <- err
