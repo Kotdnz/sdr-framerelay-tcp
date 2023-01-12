@@ -1,10 +1,10 @@
 /** @file sdr-framerelay-tcp.go
  *
- * @brief fremarelay between source and destination to optimize the stream
- * and even compress tcp flow from https://github.com/blinick/rtl-sdr/
- * @source https://github.com/Kotdnz/sdr-framerelay-tcp
+ * @brief fremarelay between source and destination to compress the data stream only
+ * from https://github.com/blinick/rtl-sdr/
+ * @github https://github.com/Kotdnz/sdr-framerelay-tcp
  * @author Kostiantyn Nikonenko
- * @date January, 11, 2023
+ * @date January, 12, 2023
  * @lib https://github.com/klauspost/compress/tree/master/zstd
  */
 
@@ -23,7 +23,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-var Version string = "v.2.2"
+var Version string = "v.2.3"
 
 func main() {
 	fmt.Println("sdr-fremarelay-tcp version: ", Version)
@@ -45,6 +45,7 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigs
+		log.Println("\r- Ctrl+C pressed in Terminal")
 		if err := p.Close(); err != nil {
 			log.Fatal(err.Error())
 		}
@@ -72,45 +73,47 @@ func Pipe(a, b net.Conn, dir string, lvl string) error {
 		encLevel = zstd.SpeedBestCompression
 	}
 
-	cp := func(r, w net.Conn) {
-		n, err := io.Copy(r, w)
-		log.Printf("Pure copied %d bytes from %s to %s", n, r.RemoteAddr(), w.RemoteAddr())
+	cp := func(srcConn, dstConn net.Conn) {
+		_, err := io.Copy(dstConn, srcConn)
+		//log.Printf("Pure copied %d bytes from %s to %s", n, srcConn.RemoteAddr(), dstConn.RemoteAddr())
 		done <- err
 	}
 
 	// Encoding
-	enc := func(r, w net.Conn) {
-		//enc, err := zstd.NewWriter(io.WriteCloser(w), zstd.WithEncoderLevel(encLevel))
-		// no idea on howto make this lib works https://github.com/klauspost/compress/tree/master/zstd
-		enc, err := zstd.NewWriter(w, zstd.WithEncoderLevel(encLevel))
+	enc := func(srcConn, dstConn net.Conn) {
+		enc, err := zstd.NewWriter(io.WriteCloser(dstConn),
+			zstd.WithEncoderLevel(encLevel),
+			zstd.WithEncoderConcurrency(1),
+			zstd.WithZeroFrames(true))
 		if err != nil {
 			log.Println("encoding error", err)
 			done <- err
 			return
 		}
-		_, err = io.Copy(enc, r)
-
+		defer enc.Close()
+		_, err = io.Copy(enc, srcConn)
+		//log.Printf("Encode copied %d bytes from %s to %s", n, srcConn.RemoteAddr(), dstConn.RemoteAddr())
 		if err != nil {
 			log.Println("encoding copy error", err)
-			enc.Close()
+			//enc.Close()
 			done <- err
 			return
 		}
-		err = enc.Close()
+		//err = enc.Close()
 		done <- err
 	}
 
 	// Decoding
-	dec := func(r, w net.Conn) {
-		// dec, err := zstd.NewReader(io.Reader(r))
-		dec, err := zstd.NewReader(r)
+	dec := func(srcConn, dstConn net.Conn) {
+		dec, err := zstd.NewReader(io.Reader(srcConn))
 		if err != nil {
 			log.Println("Decoding error", err)
 			done <- err
 			return
 		}
 		defer dec.Close()
-		_, err = io.Copy(w, dec)
+		_, err = io.Copy(dstConn, dec)
+		//log.Printf("Decode copied %d bytes from %s to %s", n, srcConn.RemoteAddr(), dstConn.RemoteAddr())
 		done <- err
 	}
 
@@ -123,11 +126,11 @@ func Pipe(a, b net.Conn, dir string, lvl string) error {
 		go cp(a, b)
 		go cp(b, a)
 	case "encode":
-		go enc(a, b)
-		go cp(b, a)
+		go cp(a, b)
+		go enc(b, a)
 	case "decode":
-		go dec(a, b)
-		go cp(b, a)
+		go cp(a, b)
+		go dec(b, a)
 	}
 
 	err1 := <-done
