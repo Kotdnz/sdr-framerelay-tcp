@@ -6,6 +6,7 @@
  * @author Kostiantyn Nikonenko
  * @date January, 12, 2023
  * @lib https://github.com/klauspost/compress/tree/master/zstd
+ * @lib https://github.com/pierrec/lz4
  */
 
 package main
@@ -21,9 +22,10 @@ import (
 	"syscall"
 
 	"github.com/klauspost/compress/zstd"
+	"github.com/pierrec/lz4/v4"
 )
 
-var Version string = "v.2.6"
+var Version string = "v.3.0"
 
 func main() {
 	fmt.Println("sdr-fremarelay-tcp version: ", Version)
@@ -33,11 +35,15 @@ func main() {
 	listen := flag.String("listen", "0.0.0.0:9001", "listen IP:Port.")
 	backend := flag.String("connect", "127.0.0.1:9002", "connect to IP:Port.")
 	compressPtr := flag.String("compress", "no", "Possible options: 'decode' on last hop, 'encode' on first hop, and 'no'")
-	compressLevel := flag.String("level", "Fastest", "The compressing level. Options: Fastest (lvl 1), Default (lvl 3), Better (lvl 7), Best (lvl 11)")
+	compressLevel := flag.String("level", "Fastest", "The compressing level (applicable to zstd only). Options: Fastest (lvl 1), Default (lvl 3), Better (lvl 7), Best (lvl 11)")
+	compressAlg := flag.String("algorithm", "zstd", "Compressing algorithm: 'zstd' or 'lz4'")
 
 	flag.Parse()
 
-	p := Proxy{Listen: *listen, Backend: *backend, compressDir: *compressPtr, compressLvl: *compressLevel}
+	p := Proxy{Listen: *listen, Backend: *backend,
+		compressDir: *compressPtr,
+		compressLvl: *compressLevel,
+		compressAlg: *compressAlg}
 
 	sigs := make(chan os.Signal)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -56,7 +62,7 @@ func main() {
 }
 
 // Copy data between two connections. Return EOF on connection close.
-func Pipe(a, b net.Conn, dir string, lvl string) error {
+func Pipe(a, b net.Conn, dir string, lvl string, alg string) error {
 	done := make(chan error, 1)
 
 	log.Println("Compressing type is:", dir)
@@ -86,40 +92,73 @@ func Pipe(a, b net.Conn, dir string, lvl string) error {
 
 	// Encoding
 	enc := func(srcConn, dstConn net.Conn) {
-		enc, err := zstd.NewWriter(io.WriteCloser(dstConn),
-			zstd.WithEncoderLevel(encLevel),
-			zstd.WithEncoderConcurrency(3))
-		//		    zstd.WithZeroFrames(true))
-		if err != nil {
-			log.Println("encoding error", err)
+		if alg == "zstd" {
+			enc, err := zstd.NewWriter(io.WriteCloser(dstConn),
+				zstd.WithEncoderLevel(encLevel),
+				zstd.WithEncoderConcurrency(3))
+			//		    zstd.WithZeroFrames(true))
+
+			if err != nil {
+				log.Println("encoding ZSTD error", err)
+				done <- err
+				return
+			}
+			defer enc.Close()
+			_, err = io.Copy(enc, srcConn)
+			//log.Printf("Encode copied %d bytes from %s to %s", n, srcConn.RemoteAddr(), dstConn.RemoteAddr())
+			if err != nil {
+				log.Println("encoding ZSTD copy error", err)
+				enc.Close()
+				done <- err
+				return
+			}
+			err = enc.Close()
 			done <- err
 			return
 		}
-		defer enc.Close()
-		_, err = io.Copy(enc, srcConn)
-		//log.Printf("Encode copied %d bytes from %s to %s", n, srcConn.RemoteAddr(), dstConn.RemoteAddr())
-		if err != nil {
-			log.Println("encoding copy error", err)
-			//enc.Close()
+		if alg == "lz4" {
+			enc4 := lz4.NewWriter(io.WriteCloser(dstConn))
+			defer enc4.Close()
+			_, err := io.Copy(enc4, srcConn)
+			//log.Printf("Encode copied %d bytes from %s to %s", n, srcConn.RemoteAddr(), dstConn.RemoteAddr())
+			if err != nil {
+				log.Println("encoding LZ4 copy error", err)
+				enc4.Close()
+				done <- err
+				return
+			}
+			err = enc4.Close()
 			done <- err
 			return
+		} else {
+			log.Printf("Wrong compress algorithm")
+			os.Exit(-1)
 		}
-		//err = enc.Close()
-		done <- err
 	}
 
 	// Decoding
 	dec := func(srcConn, dstConn net.Conn) {
-		dec, err := zstd.NewReader(io.Reader(srcConn))
-		if err != nil {
-			log.Println("Decoding error", err)
+		if alg == "zstd" {
+			dec, err := zstd.NewReader(io.Reader(srcConn))
+			if err != nil {
+				log.Println("Decoding error", err)
+				done <- err
+				return
+			}
+			defer dec.Close()
+			_, err = io.Copy(dstConn, dec)
+			//log.Printf("Decode copied %d bytes from %s to %s", n, srcConn.RemoteAddr(), dstConn.RemoteAddr())
 			done <- err
-			return
 		}
-		defer dec.Close()
-		_, err = io.Copy(dstConn, dec)
-		//log.Printf("Decode copied %d bytes from %s to %s", n, srcConn.RemoteAddr(), dstConn.RemoteAddr())
-		done <- err
+		if alg == "lz4" {
+			dec4 := lz4.NewReader(io.Reader(srcConn))
+			_, err := io.Copy(dstConn, dec4)
+			//log.Printf("Decode copied %d bytes from %s to %s", n, srcConn.RemoteAddr(), dstConn.RemoteAddr())
+			done <- err
+		} else {
+			log.Printf("Wrong compress algorithm")
+			os.Exit(-1)
+		}
 	}
 
 	// a=upConn, b=downConn

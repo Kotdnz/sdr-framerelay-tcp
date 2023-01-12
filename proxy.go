@@ -15,6 +15,7 @@ type Proxy struct {
 	listener    net.Listener
 	compressDir string
 	compressLvl string
+	compressAlg string
 }
 
 func (p *Proxy) Run() error {
@@ -53,7 +54,7 @@ func (p *Proxy) handle(upConn net.Conn) {
 		return
 	}
 	defer downConn.Close()
-	if err := Pipe(upConn, downConn, p.compressDir, p.compressLvl); err != nil {
+	if err := Pipe(upConn, downConn, p.compressDir, p.compressLvl, p.compressAlg); err != nil {
 		log.Printf("pipe failed: %s\n", err)
 	} else {
 		log.Printf("disconnected: %s\n", upConn.RemoteAddr())
