@@ -139,15 +139,15 @@ func Pipe(a, b net.Conn, dir string, lvl string, alg string, conc int) error {
 	// decode - applied to upConn (a) listen
 
 	switch dir {
-	case "no":
-		go cp(a, b)
-		go cp(b, a)
 	case "encode":
 		go cp(a, b)
 		go enc(b, a)
 	case "decode":
 		go cp(a, b)
 		go dec(b, a)
+	default:
+		go cp(a, b)
+		go cp(b, a)
 	}
 
 	err1 := <-done
