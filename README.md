@@ -11,3 +11,13 @@ How to build<br>
 go build 
 ./sdr-framerelay-tcp.go -h
 </code>
+
+Usage of ./sdr-framerelay-tcp:
+  -compress string
+    	what end of transport will be compressed/decompress. Possible options: 'decode' on last hop, 'encode' on first hop, and 'no' (default "no")
+  -connect string
+    	connect to IP:Port. (default "127.0.0.1:9002")
+  -level string
+    	The compressing level. Options: Fastest (lvl 1), Default (lvl 3), Better (lvl 7), Best (lvl 11) (default "Default")
+  -listen string
+    	listen IP:Port. (default "0.0.0.0:9001")

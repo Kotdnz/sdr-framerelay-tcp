@@ -33,7 +33,7 @@ func main() {
 	listen := flag.String("listen", "0.0.0.0:9001", "listen IP:Port.")
 	backend := flag.String("connect", "127.0.0.1:9002", "connect to IP:Port.")
 	compressPtr := flag.String("compress", "no", "what end of transport will be compressed/decompress. Possible options: 'decode' on last hop, 'encode' on first hop, and 'no'")
-	compressLevel := flag.String("speed", "Default", "The compressing level. Options: Fastest (lvl 1), Default (lvl 3), Better (lvl 7), Best (lvl 11)")
+	compressLevel := flag.String("level", "Default", "The compressing level. Options: Fastest (lvl 1), Default (lvl 3), Better (lvl 7), Best (lvl 11)")
 
 	flag.Parse()
 
