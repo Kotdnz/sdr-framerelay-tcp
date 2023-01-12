@@ -3,11 +3,11 @@
 The common idea is to compress sdr data during the transport over internet and don't touch cmd channel.
 Thus, we have two different configuration at the transport ends - encode from remote end and decode on the local:
 
->remote end[sdr_tcp:9001 <-> localhost:9002] (encode) <--- internet ---> client end (decode) [framerelay connect to remoteIP:9002: <-> client conneted to localhost:9001]
+>remote end[sdr_tcp:9002 <-> localhost:9001] (encode) <--- internet ---> client end (decode) [framerelay connect to remoteIP:9001: <-> client conneted to localhost:9001]
 
 ```mermaid
 graph LR
-A[sdr_tcp:9001 <-> sdr-framerelay-tcp:9001 -encode] -- Starlink --> B((Internet)) --Starlink --> C[sdr-framerelay-tcp -decode:9001 <-> UX]
+A[sdr_tcp:9002 <-> sdr-framerelay-tcp:9001 -encode] -- Starlink --> B((Internet)) --Starlink --> C[sdr-framerelay-tcp:9001 -decode <-> UX]
 
 ```
 
