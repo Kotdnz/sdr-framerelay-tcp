@@ -23,7 +23,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-var Version string = "v.2.3"
+var Version string = "v.2.4"
 
 func main() {
 	fmt.Println("sdr-fremarelay-tcp version: ", Version)
@@ -32,12 +32,10 @@ func main() {
 	flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	listen := flag.String("listen", "0.0.0.0:9001", "listen IP:Port.")
 	backend := flag.String("connect", "127.0.0.1:9002", "connect to IP:Port.")
-	compressPtr := flag.String("compress", "no", "what end of transport will be compressed/decompress. Possible options: 'decode' on last hop, 'encode' on first hop, and 'no'")
-	compressLevel := flag.String("level", "Default", "The compressing level. Options: Fastest (lvl 1), Default (lvl 3), Better (lvl 7), Best (lvl 11)")
+	compressPtr := flag.String("compress", "no", "Possible options: 'decode' on last hop, 'encode' on first hop, and 'no'")
+	compressLevel := flag.String("level", "Fastest", "The compressing level. Options: Fastest (lvl 1), Default (lvl 3), Better (lvl 7), Best (lvl 11)")
 
 	flag.Parse()
-
-	fmt.Println("Compress is:", *compressPtr, ", level is", *compressLevel)
 
 	p := Proxy{Listen: *listen, Backend: *backend, compressDir: *compressPtr, compressLvl: *compressLevel}
 
@@ -60,19 +58,25 @@ func main() {
 func Pipe(a, b net.Conn, dir string, lvl string) error {
 	done := make(chan error, 1)
 
+	log.Println("Compressing is:", lvl)
 	// parsing the level
 	encLevel := zstd.SpeedDefault
 	switch lvl {
 	case "Fastest":
 		encLevel = zstd.SpeedFastest
+		fmt.Println("Compress level is Fastest")
 	case "Default":
 		encLevel = zstd.SpeedDefault
+		fmt.Println("Compress level is: Default")
 	case "Better":
 		encLevel = zstd.SpeedBetterCompression
+		fmt.Println("Compress level is: Better")
 	case "Best":
 		encLevel = zstd.SpeedBestCompression
+		fmt.Println("Compress level is: Best")
+	default:
+		fmt.Println("Compress level is: Default")
 	}
-
 	cp := func(srcConn, dstConn net.Conn) {
 		_, err := io.Copy(dstConn, srcConn)
 		//log.Printf("Pure copied %d bytes from %s to %s", n, srcConn.RemoteAddr(), dstConn.RemoteAddr())
@@ -83,8 +87,8 @@ func Pipe(a, b net.Conn, dir string, lvl string) error {
 	enc := func(srcConn, dstConn net.Conn) {
 		enc, err := zstd.NewWriter(io.WriteCloser(dstConn),
 			zstd.WithEncoderLevel(encLevel),
-			zstd.WithEncoderConcurrency(1),
-			zstd.WithZeroFrames(true))
+			zstd.WithEncoderConcurrency(3))
+		//			zstd.WithZeroFrames(true))
 		if err != nil {
 			log.Println("encoding error", err)
 			done <- err
