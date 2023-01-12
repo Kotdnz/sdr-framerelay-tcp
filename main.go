@@ -23,7 +23,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-var Version string = "v.2.4"
+var Version string = "v.2.6"
 
 func main() {
 	fmt.Println("sdr-fremarelay-tcp version: ", Version)
@@ -47,6 +47,7 @@ func main() {
 		if err := p.Close(); err != nil {
 			log.Fatal(err.Error())
 		}
+		os.Exit(0)
 	}()
 
 	if err := p.Run(); err != nil {
@@ -58,24 +59,24 @@ func main() {
 func Pipe(a, b net.Conn, dir string, lvl string) error {
 	done := make(chan error, 1)
 
-	log.Println("Compressing is:", lvl)
+	log.Println("Compressing type is:", dir)
 	// parsing the level
 	encLevel := zstd.SpeedDefault
 	switch lvl {
 	case "Fastest":
 		encLevel = zstd.SpeedFastest
-		fmt.Println("Compress level is Fastest")
+		log.Println("Compress level is Fastest")
 	case "Default":
 		encLevel = zstd.SpeedDefault
-		fmt.Println("Compress level is: Default")
+		log.Println("Compress level is: Default")
 	case "Better":
 		encLevel = zstd.SpeedBetterCompression
-		fmt.Println("Compress level is: Better")
+		log.Println("Compress level is: Better")
 	case "Best":
 		encLevel = zstd.SpeedBestCompression
-		fmt.Println("Compress level is: Best")
+		log.Println("Compress level is: Best")
 	default:
-		fmt.Println("Compress level is: Default")
+		log.Println("Compress level is: Default")
 	}
 	cp := func(srcConn, dstConn net.Conn) {
 		_, err := io.Copy(dstConn, srcConn)
@@ -88,7 +89,7 @@ func Pipe(a, b net.Conn, dir string, lvl string) error {
 		enc, err := zstd.NewWriter(io.WriteCloser(dstConn),
 			zstd.WithEncoderLevel(encLevel),
 			zstd.WithEncoderConcurrency(3))
-		//			zstd.WithZeroFrames(true))
+		//		    zstd.WithZeroFrames(true))
 		if err != nil {
 			log.Println("encoding error", err)
 			done <- err
