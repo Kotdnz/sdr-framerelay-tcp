@@ -4,7 +4,7 @@
  * from https://github.com/blinick/rtl-sdr/
  * @github https://github.com/Kotdnz/sdr-framerelay-tcp
  * @author Kostiantyn Nikonenko
- * @date January, 12, 2023
+ * @date January, 13, 2023
  * @lib https://github.com/klauspost/compress/tree/master/zstd
  * @lib https://github.com/pierrec/lz4
  */
@@ -20,7 +20,7 @@ import (
 	"syscall"
 )
 
-var Version string = "v.3.2 January, 12, 2023"
+var Version string = "v.3.3 January, 12, 2023"
 
 func main() {
 	fmt.Println("sdr-fremarelay-tcp version: ", Version)

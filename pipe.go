@@ -86,26 +86,27 @@ func Pipe(a, b net.Conn, dir string, lvl string, alg string, conc int) error {
 			err = enc.Close()
 			done <- err
 			return
-		}
-		if alg == "lz4" {
-			enc4 := lz4.NewWriter(io.WriteCloser(dstConn))
-			enc4.Apply(lz4.CompressionLevelOption(lz4_encLevel),
-				lz4.ConcurrencyOption(conc))
-			defer enc4.Close()
-			_, err := io.Copy(enc4, srcConn)
-			//log.Printf("Encode copied %d bytes from %s to %s", n, srcConn.RemoteAddr(), dstConn.RemoteAddr())
-			if err != nil {
-				log.Println("encoding LZ4 copy error", err)
-				enc4.Close()
+		} else {
+			if alg == "lz4" {
+				enc4 := lz4.NewWriter(io.WriteCloser(dstConn))
+				enc4.Apply(lz4.CompressionLevelOption(lz4_encLevel),
+					lz4.ConcurrencyOption(conc))
+				defer enc4.Close()
+				_, err := io.Copy(enc4, srcConn)
+				//log.Printf("Encode copied %d bytes from %s to %s", n, srcConn.RemoteAddr(), dstConn.RemoteAddr())
+				if err != nil {
+					log.Println("encoding LZ4 copy error", err)
+					enc4.Close()
+					done <- err
+					return
+				}
+				err = enc4.Close()
 				done <- err
 				return
+			} else {
+				log.Printf("Wrong compress algorithm")
+				os.Exit(-1)
 			}
-			err = enc4.Close()
-			done <- err
-			return
-		} else {
-			log.Printf("Wrong compress algorithm")
-			os.Exit(-1)
 		}
 	}
 
@@ -122,15 +123,16 @@ func Pipe(a, b net.Conn, dir string, lvl string, alg string, conc int) error {
 			_, err = io.Copy(dstConn, dec)
 			//log.Printf("Decode copied %d bytes from %s to %s", n, srcConn.RemoteAddr(), dstConn.RemoteAddr())
 			done <- err
-		}
-		if alg == "lz4" {
-			dec4 := lz4.NewReader(io.Reader(srcConn))
-			_, err := io.Copy(dstConn, dec4)
-			//log.Printf("Decode copied %d bytes from %s to %s", n, srcConn.RemoteAddr(), dstConn.RemoteAddr())
-			done <- err
 		} else {
-			log.Printf("Wrong compress algorithm")
-			os.Exit(-1)
+			if alg == "lz4" {
+				dec4 := lz4.NewReader(io.Reader(srcConn))
+				_, err := io.Copy(dstConn, dec4)
+				//log.Printf("Decode copied %d bytes from %s to %s", n, srcConn.RemoteAddr(), dstConn.RemoteAddr())
+				done <- err
+			} else {
+				log.Printf("Wrong compress algorithm")
+				os.Exit(-1)
+			}
 		}
 	}
 
