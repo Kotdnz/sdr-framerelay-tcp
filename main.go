@@ -20,7 +20,7 @@ import (
 	"syscall"
 )
 
-var Version string = "v.3.3 January, 12, 2023"
+var Version string = "v.3.3 January, 13, 2023"
 
 func main() {
 	fmt.Println("sdr-fremarelay-tcp version: ", Version)
